@@ -1,0 +1,103 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;padding:12px;font:12px Inter,system-ui,sans-serif;background:var(--figma-color-bg,#fff);color:var(--figma-color-text,#172033)}header{display:flex;align-items:center;gap:4px;margin-bottom:12px}strong{font-size:13px;margin-right:auto}button,input{font:inherit;color:inherit}button{cursor:pointer;border:0;border-radius:5px;background:var(--figma-color-bg-secondary,#f1f3f6);padding:6px 9px}button.active{background:#2563eb;color:#fff}#add{font-size:17px;padding:2px 8px}.columns,.row{display:grid;grid-template-columns:minmax(65px,1fr) 86px 86px 20px;gap:8px;align-items:center}.columns{font-size:10px;color:var(--figma-color-text-secondary,#777);margin-bottom:6px}.row{padding:8px 0;border-top:1px solid var(--figma-color-border,#eee)}.name{width:100%;min-width:0;border:0;background:transparent;padding:5px 0;font-weight:500}.color{display:flex;align-items:center;gap:5px}input[type=color]{width:25px;height:25px;flex:none;border:0;background:none;padding:0;cursor:pointer}input[type=color]::-webkit-color-swatch-wrapper{padding:0}input[type=color]::-webkit-color-swatch{border:1px solid #0002;border-radius:5px}.hex{width:56px;font-size:10px;border:0;background:transparent;padding:3px 0}#status{font-size:10px;line-height:1.4;color:var(--figma-color-text-secondary,#777);margin-top:8px}input:focus{outline:1px solid #2563eb;border-radius:3px}
+.swatch{display:inline-block;width:25px;height:25px;flex:none;border:1px solid #0002;border-radius:5px}
+select{width:100%;padding:7px;margin-bottom:10px;border:1px solid var(--figma-color-border,#ddd);border-radius:5px;background:var(--figma-color-bg,#fff);color:inherit;font:inherit}.numeric{width:100%;padding:5px;border:1px solid var(--figma-color-border,#ddd);border-radius:4px;background:transparent}
+html,body{height:100%;overflow:hidden}body{display:flex;flex-direction:column;padding-bottom:20px}header,.columns,#category,#status{flex-shrink:0}#rows{overflow-y:auto;flex:1;min-height:0}.resize{position:fixed;right:2px;bottom:2px;width:18px;height:18px;cursor:nwse-resize;touch-action:none;background:transparent;padding:0;color:var(--figma-color-text-secondary,#888)}
+.section-actions{display:flex;gap:8px;margin-bottom:10px;flex-shrink:0}.section-actions input{flex:1;min-width:0;border:1px solid var(--figma-color-border,#ddd);border-radius:5px;background:transparent;padding:5px}#copy-fallback{position:fixed;inset:12px;padding:12px;background:var(--figma-color-bg,#fff);border:1px solid var(--figma-color-border,#ddd);border-radius:8px;z-index:2}#export-text{width:100%;height:65%;resize:none;background:transparent;color:inherit;font:10px monospace}.hex{font-size:9px}
+.shadow-row{grid-template-columns:1fr 20px}.shadow-row .name{grid-column:1;grid-row:1}.shadow-row>button{grid-column:2;grid-row:1}.shadow-row .color{grid-column:1/-1}.shadow-row .color:before{content:attr(data-label);font-size:10px;width:32px;flex:none}.shadow-row .numeric{min-width:0;font-size:10px}
+</style></head><body><header><strong>Tokens</strong><button id="day">Día</button><button id="night">Noche</button><button id="copy" title="Copiar todos los tokens" aria-label="Copiar todos los tokens">Copiar</button><button id="add" title="Agregar color" aria-label="Agregar color">+</button></header><select id="category" aria-label="Categoría"><option value="colors">Colors</option><option value="fontSize">Font size · px</option><option value="fontWeight">Font weight</option><option value="letterSpacing">Letter spacing · px</option><option value="borderRadius">Border radius · px</option><option value="shadow">Shadows</option></select><div class="section-actions"><input id="search" placeholder="Buscar token…" aria-label="Buscar token"><button id="restore" title="Restaurar defaults de esta sección; conserva tokens personalizados">Regenerar</button></div><div class="columns"><span>Nombre</span><span>Día</span><span>Noche</span><span></span></div><div id="rows"></div><div id="status" role="status"></div><button id="resize" class="resize" title="Arrastra para redimensionar" aria-label="Redimensionar ventana">◢</button><div id="copy-fallback" hidden><p>No se pudo copiar automáticamente. Copia el contenido con Cmd/Ctrl + C.</p><textarea id="export-text" readonly aria-label="Todos los tokens exportados"></textarea><button id="close-export">Cerrar</button></div><script>
+const status=document.getElementById('status'),category=document.getElementById('category');
+const send=message=>{status.textContent='';parent.postMessage({pluginMessage:message},'*');};
+let state={rows:[],theme:'day'};
+for(const theme of ['day','night'])document.getElementById(theme).onclick=()=>send({type:'theme',theme});
+document.getElementById('add').onclick=()=>send({type:'add',kind:category.value});
+category.onchange=()=>{document.getElementById('search').value='';render();};
+document.getElementById('search').oninput=render;
+document.getElementById('restore').onclick=()=>send({type:'restore',kind:category.value});
+document.getElementById('copy').onclick=()=>send({type:'export'});
+document.getElementById('close-export').onclick=()=>{document.getElementById('copy-fallback').hidden=true;};
+async function copyAll(text){
+ try {
+  if(!navigator.clipboard?.writeText)throw new Error('Clipboard unavailable');
+  await navigator.clipboard.writeText(text);
+  status.textContent='Todos los tokens copiados.';
+ } catch {
+  const textarea=document.getElementById('export-text');textarea.value=text;
+  const fallback=document.getElementById('copy-fallback');fallback.hidden=false;
+  textarea.focus();textarea.select();
+  let copied=false;
+  try{copied=document.execCommand('copy');}catch{}
+  if(copied){fallback.hidden=true;status.textContent='Todos los tokens copiados.';}
+ }
+}
+const rowNodes=new Map();
+function createRow(token){
+ const row=document.createElement('section');row.className=token.kind==='shadow'?'row shadow-row':'row';row.dataset.id=token.id;
+ const name=document.createElement('input');name.className='name';name.dataset.field='name';name.setAttribute('aria-label','Nombre del token');name.onchange=()=>send({type:'rename',id:token.id,name:name.value});row.append(name);
+ for(const mode of ['day','night']){
+  const cell=document.createElement('div');cell.className='color';cell.dataset.label=mode==='day'?'Día':'Noche';
+  if(token.kind==='colors'){const preview=document.createElement('span');preview.className='swatch';preview.dataset.mode=mode;preview.title='Vista previa';cell.append(preview);}
+  const input=document.createElement('input');input.dataset.field=mode;input.className=token.kind==='colors'?'hex':'numeric';if(token.kind==='shadow')input.title='X Y blur spread #RRGGBBAA; separa capas con comas, o usa none';
+  if(token.kind!=='colors'&&token.kind!=='shadow'){input.type='number';input.step=token.kind==='fontWeight'?'1':'any';if(token.kind==='fontSize')input.min='0.01';if(token.kind==='borderRadius')input.min='0';if(token.kind==='fontWeight'){input.min='1';input.max='1000';}}
+  input.onchange=()=>send({type:'value',id:token.id,mode,value:input.value});cell.append(input);row.append(cell);
+ }
+ const remove=document.createElement('button');remove.textContent='×';remove.style.cssText='padding:2px;font-size:16px;background:transparent';remove.title='Borrar token y su variable';remove.onclick=()=>send({type:'delete',id:token.id});row.append(remove);
+ return row;
+}
+function render(){
+ document.querySelector('.columns').style.display=category.value==='shadow'?'none':'grid';
+ for(const mode of ['day','night'])document.getElementById(mode).classList.toggle('active',state.theme===mode);
+ const rows=document.getElementById('rows');
+ const query=document.getElementById('search').value.toLowerCase().trim();
+ const selected=state.rows.filter(token=>(token.kind||'colors')===category.value && token.name.toLowerCase().includes(query));
+ const ids=new Set(selected.map(token=>token.id));
+ for(const [id,row] of rowNodes){if(!ids.has(id)){row.remove();rowNodes.delete(id);}}
+ rows.querySelector('.empty')?.remove();
+ for(const token of selected){
+  let row=rowNodes.get(token.id);
+  if(!row){row=createRow(token);rowNodes.set(token.id,row);rows.append(row);}
+  for(const field of ['name','day','night']){
+   const input=row.querySelector('[data-field="'+field+'"]');
+   // Preserve the focused input, cursor and unsubmitted draft across async replies.
+   if(document.activeElement!==input)input.value=field==='name'?token.name:token[field];
+   if(field!=='name')input.setAttribute('aria-label',token.name+' '+(field==='day'?'día':'noche'));
+  }
+  for(const mode of ['day','night']){const preview=row.querySelector('[data-mode="'+mode+'"]');if(preview)preview.style.background=token[mode];}
+  row.querySelector('button').setAttribute('aria-label','Borrar '+token.name);
+ }
+ if(!selected.length){const empty=document.createElement('p');empty.className='empty';empty.style.cssText='font-size:11px;color:var(--figma-color-text-secondary,#777)';empty.textContent='Pulsa + para agregar un token de esta categoría.';rows.append(empty);}
+}
+window.onmessage=event=>{
+ const msg=event.data.pluginMessage;if(!msg)return;
+ if(msg.type==='export'){copyAll(msg.text);return;}
+ if(msg.type==='notice'){status.textContent=msg.message;return;}
+ if(msg.type==='error'){status.textContent=msg.message;return;}
+ if(msg.type==='state'){state=msg;render();}
+};
+const grip=document.getElementById('resize');let drag=null;
+function resizePanel(width,height,persist=false){parent.postMessage({pluginMessage:{type:'resize',width:Math.max(340,Math.min(1000,width)),height:Math.max(240,Math.min(1000,height)),persist}},'*');}
+function stopResize(){
+ if(!drag)return;
+ const ended=drag;drag=null;
+ if(grip.hasPointerCapture(ended.id))grip.releasePointerCapture(ended.id);
+ resizePanel(ended.lastWidth,ended.lastHeight,true);
+}
+grip.onpointerdown=e=>{
+ if(e.button!==0)return;
+ stopResize();
+ drag={id:e.pointerId,x:e.screenX,y:e.screenY,width:window.innerWidth,height:window.innerHeight,lastWidth:window.innerWidth,lastHeight:window.innerHeight};
+ grip.setPointerCapture(e.pointerId);e.preventDefault();
+};
+grip.onpointermove=e=>{
+ if(!drag||e.pointerId!==drag.id)return;
+ if((e.buttons&1)===0){stopResize();return;}
+ drag.lastWidth=drag.width+e.screenX-drag.x;drag.lastHeight=drag.height+e.screenY-drag.y;
+ resizePanel(drag.lastWidth,drag.lastHeight);
+};
+window.addEventListener('pointerup',stopResize,true);
+window.addEventListener('pointercancel',stopResize,true);
+window.addEventListener('blur',stopResize);
+grip.addEventListener('lostpointercapture',stopResize);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopResize();});
+grip.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();resizePanel(window.innerWidth+(e.key==='ArrowRight'?20:e.key==='ArrowLeft'?-20:0),window.innerHeight+(e.key==='ArrowDown'?20:e.key==='ArrowUp'?-20:0),true);};
+</script></body></html>

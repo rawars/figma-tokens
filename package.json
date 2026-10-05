@@ -1,0 +1,30 @@
+{
+  "name": "figma-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source Figma plugin for managing design tokens and day/night themes",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run build && node scripts/check-manifest.mjs",
+    "test": "npm run check && node tests/tokens.mjs && node tests/ui.mjs && node tests/presets.mjs",
+    "generate:presets": "node scripts/generate-presets.mjs"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.140.0",
+    "culori": "^4.0.2",
+    "esbuild": "^0.28.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rawars/figma-tokens.git"
+  }
+}

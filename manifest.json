@@ -1,0 +1,30 @@
+{
+  "name": "figma-tokens",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "editorType": [
+    "figma"
+  ],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "none"
+    ]
+  },
+  "id": "figma-theme-local",
+  "menu": [
+    {
+      "name": "Editar tokens",
+      "command": "setup"
+    },
+    {
+      "name": "Modo d\u00eda",
+      "command": "day"
+    },
+    {
+      "name": "Modo noche",
+      "command": "night"
+    }
+  ],
+  "ui": "src/ui.html"
+}
