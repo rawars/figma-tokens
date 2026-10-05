@@ -1,10 +1,10 @@
 import { presets } from "./presets";
 type Theme = "day" | "night";
-type Kind = "colors" | "fontSize" | "fontWeight" | "letterSpacing" | "borderRadius" | "shadow";
+type Kind = import("./presets").PresetKind;
 type Token = { variableId: string; name: string; kind: Kind; day: RGB | number | string; night: RGB | number | string; presetId?: string };
-const kinds: Kind[] = ["colors", "fontSize", "fontWeight", "letterSpacing", "borderRadius", "shadow"];
-const scopes: Record<Kind, VariableScope[]> = { colors: ["ALL_SCOPES"], fontSize: ["FONT_SIZE"], fontWeight: ["FONT_WEIGHT"], letterSpacing: ["LETTER_SPACING"], borderRadius: ["CORNER_RADIUS"], shadow: [] };
-const defaults: Record<Kind, number> = { colors: 0, fontSize: 16, fontWeight: 400, letterSpacing: 0, borderRadius: 8, shadow: 0 };
+const kinds: Kind[] = ["colors", "fontSize", "fontWeight", "letterSpacing", "borderRadius", "shadow", "height", "width"];
+const scopes: Record<Kind, VariableScope[]> = { colors: ["ALL_SCOPES"], fontSize: ["FONT_SIZE"], fontWeight: ["FONT_WEIGHT"], letterSpacing: ["LETTER_SPACING"], borderRadius: ["CORNER_RADIUS"], shadow: [], height: ["WIDTH_HEIGHT"], width: ["WIDTH_HEIGHT"] };
+const defaults: Record<Kind, number> = { colors: 0, fontSize: 16, fontWeight: 400, letterSpacing: 0, borderRadius: 8, shadow: 0, height: 36, width: 36 };
 function parseValue(kind: Kind, input: string): RGB | number | string {
   if (kind === "shadow") { shadowEffects(input); return input.trim(); }
   if (kind === "colors") return parseHex(input);
@@ -13,6 +13,7 @@ function parseValue(kind: Kind, input: string): RGB | number | string {
   if (!Number.isFinite(value)) throw new Error("Introduce un número válido.");
   if (kind === "fontSize" && value <= 0) throw new Error("Font size debe ser mayor que cero.");
   if (kind === "borderRadius" && value < 0) throw new Error("Border radius no puede ser negativo.");
+  if ((kind === "height" || kind === "width") && value < 0) throw new Error("Width y height no pueden ser negativos.");
   if (kind === "fontWeight" && (value < 1 || value > 1000)) throw new Error("Font weight debe estar entre 1 y 1000.");
   return value;
 }
@@ -173,7 +174,7 @@ function exportTokens(tokens: Token[]) {
       themes: ["day", "night"], rootFontSizePx: 16,
       colors: "sRGB hexadecimal; #RRGGBBAA includes alpha",
       shadow: "CSS box-shadow strings: X Y blur spread #RRGGBBAA; comma-separated layers. Figma effect styles, not variables.",
-      fontSize: "px", borderRadius: "px", fontWeight: "numeric weight, dependent on font support",
+      height: "px", width: "px", fontSize: "px", borderRadius: "px", fontWeight: "numeric weight, dependent on font support",
       letterSpacing: "px; Tailwind tracking presets convert em at a 16px font size. For other font sizes, convert the original em value proportionally.",
       presets: "Tailwind 4.3.3 typography/radius + monochromatic shadcn Neutral (chart/destructive chroma removed). Shadows use the Tailwind scale used by shadcn. shadcn radius presets are snapshots, not live aliases. Typography uses the Tailwind scales inherited by shadcn; names have no source prefix.",
       figmaThemeSwitching: "Changes the single variable mode value globally; does not use paid multi-mode collections.",
@@ -213,6 +214,11 @@ async function run() {
   if (!figma.root.getPluginData("figma-theme-presets-v2")) {
     await restorePresets(tokens, figma.root.getPluginData("figma-theme-presets-v1") ? "shadow" : undefined);
     figma.root.setPluginData("figma-theme-presets-v2", "seeded");
+  }
+  if (!figma.root.getPluginData("figma-theme-sizing-presets-v1")) {
+    await restorePresets(tokens, "height");
+    await restorePresets(tokens, "width");
+    figma.root.setPluginData("figma-theme-sizing-presets-v1", "seeded");
   }
   const sendState = () => figma.ui.postMessage({ type: "state", theme: active(), rows: tokens.map(token => ({ id: token.variableId, name: token.name, kind: token.kind, day: serializeValue(token.day), night: serializeValue(token.night) })) });
   if (figma.command === "day" || figma.command === "night") {

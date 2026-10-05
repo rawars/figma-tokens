@@ -10,6 +10,13 @@ Node.js 22 o superior. Ejecuta `npm ci` y `npm run check`. Importa `manifest.jso
 
 Abre **figma-tokens → Editar tokens**:
 
+### Acceso por teclado
+
+Después de ejecutar **Editar tokens**, puedes volver a abrirlo con **⌘⌥P** en Mac o **Ctrl+Alt+P** en Windows. Es el atajo de Figma para ejecutar el último plugin/comando usado: si ejecutas otro plugin o Modo día/noche, repetirá esa acción. Para elegir el editor explícitamente, usa el menú de acciones de Figma y busca **Editar tokens**.
+
+Figma no permite registrar un atajo global propio desde el manifiesto de un plugin. [Atajos oficiales para plugins](https://help.figma.com/hc/en-us/articles/360042532714-Use-plugins-in-files).
+
+
 - **Día / Noche** cambia todos los colores vinculados del archivo.
 - **×** elimina el color y su variable local. Puede afectar los elementos vinculados a esa variable; puedes deshacer desde Figma.
 - Selecciona una categoría y pulsa **+** para agregar un token. Todos permiten renombrar, editar día/noche y borrar.
@@ -20,6 +27,7 @@ Abre **figma-tokens → Editar tokens**:
 | Font size | FLOAT | 16 / 16 px | Tamaño de texto |
 | Font weight | FLOAT | 400 / 400 | Peso tipográfico |
 | Letter spacing | FLOAT | 0 / 0 px | Espaciado entre letras |
+| Height / Width | FLOAT | 36 / 36 px | Alto y ancho |
 | Border radius | FLOAT | 8 / 8 px | Radio de esquinas |
 
 Los tokens numéricos aparecen en el selector de variables de la propiedad correspondiente, gracias a su scope. El peso efectivo depende de los pesos que soporte la fuente utilizada. Font size debe ser positivo, border radius no negativo y font weight entre 1 y 1000. Letter spacing admite valores negativos. Día y noche pueden tener el mismo valor.
@@ -55,10 +63,11 @@ Arrastra la esquina inferior derecha para redimensionar el panel. También puede
 
 ## Defaults de shadcn
 
-El panel precarga **75 presets** una sola vez por archivo: 31 colores, 13 tamaños de texto, 9 pesos, 6 espaciados, 8 radios y 8 sombras. Se usa un único catálogo con nombres sin prefijos: `background`, `text-sm`, `font-medium`, `tracking-wide`, `radius-sm` y `shadow-2xl`.
+El panel precarga **145 presets** una sola vez por archivo: 31 colores, 13 tamaños de texto, 9 pesos, 6 espaciados, 8 radios, 8 sombras, 35 alturas y 35 anchos. Se usa un único catálogo con nombres sin prefijos: `background`, `text-sm`, `font-medium`, `tracking-wide`, `radius-sm` y `shadow-2xl`.
 
 - Los colores son una **adaptación monocromática del tema Neutral de shadcn**: se conserva la luminosidad y el alpha, y se elimina el chroma de destructive/charts. La paleta completa de Tailwind no se precarga.
 - La tipografía procede de las escalas Tailwind 4.3.3 heredadas por shadcn. Los valores rem se convierten con base de 16 px. Tracking está convertido desde em a px para texto de 16 px: ajusta proporcionalmente si usas otro tamaño.
+- Height y Width usan la escala fija de Tailwind: `h-px`/`w-px` (1 px) y pasos de `0` a `96`, incluyendo medios pasos hasta `3.5`. Figma no acepta puntos en nombres de variables: `h-0_5`/`w-0_5` equivalen a las clases `h-0.5`/`w-0.5`; la exportación conserva la clase original en `preset`. Cada unidad equivale a 4 px: `h-6` = 24, `h-8` = 32, `h-9` = 36 y `h-10` = 40 px. Se agregan automáticamente a archivos existentes conservando los tokens anteriores. Valores relativos como `full`, `auto` y fracciones no tienen una equivalencia fija en px y se configuran con el layout de Figma.
 - Radius usa el valor base de shadcn de 10 px y sus multiplicadores oficiales. Los valores derivados son snapshots editables, no aliases dinámicos.
 - Shadows usa la escala de box-shadow de Tailwind que emplea shadcn: none, 2xs, xs, sm, md, lg, xl y 2xl. Se guarda en **estilos de efectos locales**, disponibles en el selector de estilos de **Effects**, no en las variables de Fill. Su valor admite `none` o capas `X Y blur spread #RRGGBBAA` separadas por comas. Los presets tienen igual valor en día y noche; puedes editarlos por separado.
 

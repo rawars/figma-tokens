@@ -21,7 +21,7 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 await tick();
 assert.equal(JSON.parse(data['figma-theme-tokens-v3'])[0].variableId, 'original');
 const send = async msg => { figma.ui.onmessage(msg); await tick(); };
-const expected = { fontSize: 'FONT_SIZE', fontWeight: 'FONT_WEIGHT', letterSpacing: 'LETTER_SPACING', borderRadius: 'CORNER_RADIUS' };
+const expected = { height: 'WIDTH_HEIGHT', width: 'WIDTH_HEIGHT', fontSize: 'FONT_SIZE', fontWeight: 'FONT_WEIGHT', letterSpacing: 'LETTER_SPACING', borderRadius: 'CORNER_RADIUS' };
 for (const [kind, scope] of Object.entries(expected)) {
  await send({ type: 'add', kind });
  const token = JSON.parse(data['figma-theme-tokens-v3']).at(-1);

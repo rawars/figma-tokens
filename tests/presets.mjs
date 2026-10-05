@@ -10,20 +10,20 @@ let serial = 0;
 function variable(id,name,type) { return {id,name,resolvedType:type,variableCollectionId:'c',setValueForMode(mode,value){this.value=value;},remove(){variables.delete(id);}}; }
 variables.set('custom',variable('custom','bg','COLOR'));
 const messages=[];
-const figma={command:'setup',root:{getPluginData:k=>data[k]||'',setPluginData:(k,v)=>data[k]=v},variables:{getVariableByIdAsync:async id=>variables.get(id),getVariableCollectionByIdAsync:async()=>collection,createVariableCollection:()=>collection,createVariable(name,c,type){const v=variable('v'+serial++,name,type);variables.set(v.id,v);return v;}},getStyleByIdAsync:async id=>styles.get(id),createEffectStyle(){const id='s'+serial++;const style={id,type:'EFFECT',name:'',effects:[],remove(){styles.delete(id);}};styles.set(id,style);return style;},ui:{postMessage:m=>messages.push(m)},showUI(){},commitUndo(){},closePlugin(msg){throw Error(msg);}};
+const figma={command:'setup',root:{getPluginData:k=>data[k]||'',setPluginData:(k,v)=>data[k]=v},variables:{getVariableByIdAsync:async id=>variables.get(id),getVariableCollectionByIdAsync:async()=>collection,createVariableCollection:()=>collection,createVariable(name,c,type){assert(!name.includes('.'), 'Figma rejects dots in variable names');const v=variable('v'+serial++,name,type);variables.set(v.id,v);return v;}},getStyleByIdAsync:async id=>styles.get(id),createEffectStyle(){const id='s'+serial++;const style={id,type:'EFFECT',name:'',effects:[],remove(){styles.delete(id);}};styles.set(id,style);return style;},ui:{postMessage:m=>messages.push(m)},showUI(){},commitUndo(){},closePlugin(msg){throw Error(msg);}};
 const tick=()=>new Promise(r=>setTimeout(r,0));
 async function open(){vm.runInNewContext(code,{figma,__html__:'',console:{error(){}}});await tick();}
 const tokens=()=>JSON.parse(data['figma-theme-tokens-v3']);
 const send=async msg=>{figma.ui.onmessage(msg);await tick();};
 await open();
-assert.equal(tokens().length,76); // 75 official/adapted presets + original user token.
+assert.equal(tokens().length,146); // 145 official/adapted presets + original user token.
 assert.equal(tokens().find(t=>t.variableId==='custom').day.r,.2);
 assert(!tokens().some(t=>t.kind==='colors'&&t.name.startsWith('tailwind/')));
 for (const t of tokens().filter(t=>t.presetId&&t.kind==='colors')) {
  for(const mode of ['day','night']) { assert.equal(t[mode].r,t[mode].g);assert.equal(t[mode].g,t[mode].b); }
 }
 const counts={};for(const t of tokens())if(t.presetId)counts[t.kind]=(counts[t.kind]||0)+1;
-assert.deepEqual(counts,{fontSize:13,fontWeight:9,letterSpacing:6,borderRadius:8,shadow:8,colors:31});
+assert.deepEqual(counts,{fontSize:13,fontWeight:9,letterSpacing:6,borderRadius:8,shadow:8,height:35,width:35,colors:31});
 const size=tokens().find(t=>t.presetId==='shadcn/text-base');
 assert.equal(size.day,16);
 await send({type:'value',id:size.variableId,mode:'day',value:'22'});
@@ -45,15 +45,15 @@ await send({type:'delete',id:deleted.variableId});await open();
 assert(!tokens().some(t=>t.presetId===deleted.presetId));
 await send({type:'restore',kind:'shadow'});
 assert.equal(tokens().filter(t=>t.presetId===deleted.presetId).length,1);
-await send({type:'restore',kind:'shadow'});assert.equal(tokens().length,76);
+await send({type:'restore',kind:'shadow'});assert.equal(tokens().length,146);
 await send({type:'export'});
 const exported=JSON.parse(messages.findLast(m=>m.type==='export').text);
-assert.equal(exported.tokens.length,76);assert.equal(exported.activeTheme,'night');
+assert.equal(exported.tokens.length,146);assert.equal(exported.activeTheme,'night');
 assert(exported.tokens.some(t=>t.category==='shadow'));
 assert.equal(exported.tokens.find(t=>t.preset==='border').night,'#ffffff1a');
 assert.equal(exported.tokens.find(t=>t.name==='bg').day,'#334d66');
 assert.equal(messages.filter(m=>m.type==='error').length,0);
-console.log('Passed: 75 presets, custom-token preservation, stable IDs, shadow styles/themes, per-section restore, persistent deletion, alpha and full export.');
+console.log('Passed: 145 presets, custom-token preservation, stable IDs, shadow styles/themes, per-section restore, persistent deletion, alpha and full export.');
 
 // Migrate old prefixed catalogs while preserving user edits and bound resource IDs.
 const oldWeight=variable('old-weight','tailwind/font-medium','FLOAT');variables.set(oldWeight.id,oldWeight);
@@ -67,3 +67,31 @@ assert.equal(tokens().find(t=>t.variableId==='old-weight').presetId,'shadcn/font
 assert(!tokens().some(t=>t.variableId==='old-radius'));assert(variables.has('old-radius'));
 assert.equal(oldRadius.name,'rounded-sm');assert.equal(tokens().find(t=>t.variableId==='custom').name,'bg');
 console.log('Passed: prefix migration preserves identifiers/custom edits; retired radius variables remain bound safely.');
+
+// Upgrade an already seeded file, then preserve sizing edits/deletions on reopen.
+data['figma-theme-tokens-v3'] = JSON.stringify(tokens().filter(t => !['height', 'width'].includes(t.kind)));
+delete data['figma-theme-sizing-presets-v1'];
+await open();
+for (const prefix of ['h', 'w']) {
+ for (const [suffix, value] of [['px',1], ['0',0], ['0.5',2], ['6',24], ['8',32], ['9',36], ['10',40], ['96',384]]) {
+  const token = tokens().find(t => t.name === `${prefix}-${suffix.replaceAll('.', '_')}`);
+  assert.equal(token.day, value); assert.equal(token.night, value);
+  assert.equal(variables.get(token.variableId).resolvedType, 'FLOAT');
+  assert.deepEqual(Array.from(variables.get(token.variableId).scopes), ['WIDTH_HEIGHT']);
+ }
+}
+const height = tokens().find(t => t.name === 'h-9');
+await send({type:'value', id:height.variableId, mode:'day', value:'-1'});
+assert.equal(tokens().find(t => t.variableId === height.variableId).day,36);
+await send({type:'value', id:height.variableId, mode:'day', value:'42'});
+const width = tokens().find(t => t.name === 'w-9');
+await send({type:'delete', id:width.variableId});
+await open();
+assert.equal(tokens().find(t => t.variableId === height.variableId).day,42);
+assert(!tokens().some(t => t.presetId === width.presetId));
+await send({type:'restore', kind:'width'});
+assert.equal(tokens().find(t => t.presetId === width.presetId).day,36);
+assert.equal(tokens().find(t => t.variableId === height.variableId).day,42);
+await send({type:'restore', kind:'height'});
+assert.equal(tokens().find(t => t.variableId === height.variableId).day,36);
+console.log('Passed: sizing migration, px scale/scopes, negative validation, persistent edits/deletions and independent restore.');
